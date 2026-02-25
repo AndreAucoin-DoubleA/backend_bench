@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "7000:7000"
+
+volumes:
+  cassandra_data:
