@@ -1,6 +1,5 @@
 name: CI
 
-# Trigger on PRs to main
 on:
   pull_request:
     branches:
@@ -18,6 +17,8 @@ jobs:
           --health-interval 5s 
           --health-timeout 5s 
           --health-retries 12
+        ports:
+          - 9042:9042
 
     env:
       CASSANDRA_HOST: cassandra
@@ -25,6 +26,7 @@ jobs:
       KEYSPACE: wiki
       TEST_KEYSPACE: wiki_test
       STREAM_URL: https://stream.wikimedia.org/v2/stream/recentchange
+      RUN_CI: "true"
 
     steps:
       - uses: actions/checkout@v4
@@ -56,19 +58,22 @@ jobs:
       - run: go vet ./...
 
       - name: Integration Tests
-        run: |
-          docker compose up -d cassandra
-          docker compose run --rm app go test ./test/integration/... -v
+        run: go test -v ./test/integration/...
+        env:
+          CASSANDRA_HOST: localhost
+          CASSANDRA_PORT: 9042
+          TEST_KEYSPACE: wiki_test
+          RUN_CI: "true"
 
       - name: Build Docker Image
-        run: docker build -t ghcr.io/${{ github.repository }}/backend-bench:latest .
+        run: docker build -t ghcr.io/andreaucoin-doublea/backend-bench:latest .
 
       - name: Login to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Push Docker Image
-        run: docker push ghcr.io/${{ github.repository }}/backend-bench:latest
+        run: docker push ghcr.io/andreaucoin-doublea/backend-bench:latest
