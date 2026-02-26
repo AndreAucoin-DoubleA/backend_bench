@@ -49,3 +49,5 @@ act pull_request -j build-test-publish --secret-file .env: To run CI/CD pipeline
 - [x] Run https://github.com/golangci/golangci-lint
 - [x] Create a new image for your application as part of a docker file
 - [x] Publish this image to ghcr.io or dockerhub when all the checks & stages pass
+
+Testing pipelines here
