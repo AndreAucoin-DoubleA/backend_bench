@@ -2,6 +2,7 @@ package db
 
 import (
 	"log"
+	"os"
 	"time"
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
@@ -12,7 +13,9 @@ func ConnectToCassandra(host string, port int, keyspace string, email, password 
 	var session *gocql.Session
 	var err error
 
-	// 1️⃣ Connect WITHOUT keyspace to create it
+	timeout := 60 * time.Second
+	start := time.Now()
+
 	for {
 		cluster := gocql.NewCluster(host)
 		cluster.Port = port
@@ -20,6 +23,9 @@ func ConnectToCassandra(host string, port int, keyspace string, email, password 
 
 		session, err = cluster.CreateSession()
 		if err != nil {
+			if os.Getenv("RUN_CI") == "true" && time.Since(start) > timeout {
+				log.Fatalf("CI Timeout waiting for Cassandra: %v", err)
+			}
 			log.Println("Connecting to:", host)
 			log.Println("Waiting for Cassandra container to be ready...")
 			time.Sleep(3 * time.Second)
@@ -29,7 +35,6 @@ func ConnectToCassandra(host string, port int, keyspace string, email, password 
 	}
 	log.Println("Connected to Cassandra (no keyspace)")
 
-	// Create keyspace
 	err = session.Query(`
 		CREATE KEYSPACE IF NOT EXISTS ` + keyspace + `
 		WITH replication = {
@@ -41,9 +46,9 @@ func ConnectToCassandra(host string, port int, keyspace string, email, password 
 		log.Fatal("Failed creating keyspace:", err)
 	}
 	log.Println("Keyspace created or already exists")
-	session.Close() // close temporary session
+	session.Close()
 
-	// 2️⃣ Connect WITH keyspace to create tables
+	start = time.Now()
 	for {
 		cluster := gocql.NewCluster(host)
 		cluster.Port = port
@@ -52,6 +57,9 @@ func ConnectToCassandra(host string, port int, keyspace string, email, password 
 
 		session, err = cluster.CreateSession()
 		if err != nil {
+			if os.Getenv("RUN_CI") == "true" && time.Since(start) > timeout {
+				log.Fatalf("CI Timeout waiting for keyspace: %v", err)
+			}
 			log.Println("Waiting for keyspace to be ready...")
 			time.Sleep(3 * time.Second)
 			continue
@@ -60,61 +68,49 @@ func ConnectToCassandra(host string, port int, keyspace string, email, password 
 	}
 	log.Println("Connected to Cassandra with keyspace:", keyspace)
 
-	err = session.Query(`
-		CREATE TABLE IF NOT EXISTS user_by_email (
+	createTables(session)
+	seedInitialUser(session, email, password)
+	seedInitialTotalStats(session)
+
+	return session
+}
+
+func createTables(session *gocql.Session) {
+	tables := []string{
+		`CREATE TABLE IF NOT EXISTS user_by_email (
 			email TEXT,
 			id UUID,
 			password_hash TEXT,
 			created_at TEXT,
 			PRIMARY KEY(email)
-		);
-	`).Exec()
-	if err != nil {
-		log.Fatal("Failed creating table:", err)
-	}
-
-	// Create tables
-	err = session.Query(`
-		CREATE TABLE IF NOT EXISTS wiki_url_stats (
+		);`,
+		`CREATE TABLE IF NOT EXISTS wiki_url_stats (
 			stat_date TEXT,
 			url TEXT,
 			count counter,
 			PRIMARY KEY (stat_date, url)
-		);
-	`).Exec()
-	if err != nil {
-		log.Fatal("Failed creating table:", err)
-	}
-
-	err = session.Query(`
-		CREATE TABLE IF NOT EXISTS wiki_users_stats (
+		);`,
+		`CREATE TABLE IF NOT EXISTS wiki_users_stats (
 			stat_date TEXT,
-    		username TEXT,
+			username TEXT,
 			count counter,
-    		PRIMARY KEY (stat_date, username)
-		);
-	`).Exec()
-	if err != nil {
-		log.Fatal("Failed creating table:", err)
-	}
-
-	err = session.Query(`
-		CREATE TABLE IF NOT EXISTS wiki_total_stats (
+			PRIMARY KEY (stat_date, username)
+		);`,
+		`CREATE TABLE IF NOT EXISTS wiki_total_stats (
 			stat_date TEXT,
 			total_changes counter,
 			num_bots counter,
 			num_non_bots counter,
 			PRIMARY KEY (stat_date)
-		);
-	`).Exec()
-	if err != nil {
-		log.Fatal("Failed creating table:", err)
+		);`,
+	}
+
+	for _, q := range tables {
+		if err := session.Query(q).Exec(); err != nil {
+			log.Fatalf("Failed creating table: %v", err)
+		}
 	}
 	log.Println("Cassandra tables initialized")
-
-	seedInitialUser(session, email, password)
-	seedInitialTotalStats(session)
-	return session
 }
 
 func seedInitialUser(session *gocql.Session, email, password string) {

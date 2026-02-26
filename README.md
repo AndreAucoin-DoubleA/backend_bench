@@ -2,9 +2,13 @@
 
 docker-compose up --build   : To run application 
 
-go test ./... : To run integration test
+CASSANDRA_HOST=localhost TEST_KEYSPACE=wiki_test go test ./test/integration/... -v : To run integration test locally
 
 http://localhost:7000/status: To see all the stats that have been consumed
+
+http://localhost:7000/login: To login as status endpoint is authenticated
+
+act pull_request -j build-test-publish --secret-file .env: To run CI/CD pipeline
 
 
 # 1. GoLang

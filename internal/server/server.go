@@ -24,12 +24,19 @@ func StartServer(config string, repo *model.UserRepository, wikiRepo *model.Wiki
 		IdleTimeout:  120 * time.Second,
 	}
 
-	go func() {
+	runServer := func() {
 		log.Printf("Server running on :%s\n", config)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen error: %s\n", err)
 		}
-	}()
+	}
+
+	if os.Getenv("RUN_CI") == "true" {
+		go runServer()
+		return
+	}
+
+	go runServer()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
