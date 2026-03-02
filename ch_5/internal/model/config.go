@@ -10,4 +10,5 @@ type Config struct {
 	JWTSecret     string
 	Email         string
 	Password      string
+	Broker        string
 }

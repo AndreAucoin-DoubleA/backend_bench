@@ -25,6 +25,7 @@ func GetConfig() model.Config {
 	testKeyspace := os.Getenv("TEST_KEYSPACE")
 	initialUserPassword := os.Getenv("INITIAL_USER_PASSWORD")
 	initialEmail := os.Getenv("INITIAL_USER_EMAIL")
+	broker := os.Getenv("REDPANDA_BROKER")
 
 	if port == "" || stream == "" || cassandraHost == "" || cassandraPortStr == "" || keyspaceKey == "" || jwtSecret == "" || initialUserPassword == "" || initialEmail == "" {
 		log.Fatal("One or more required environment variables are missing")
@@ -44,5 +45,6 @@ func GetConfig() model.Config {
 		JWTSecret:     jwtSecret,
 		Email:         initialEmail,
 		Password:      initialUserPassword,
+		Broker:        broker,
 	}
 }

@@ -7,11 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"time"
 )
 
-func StartServer(config string, repo *model.UserRepository, wikiRepo *model.WikiRepository, jwtSecret string) {
+func StartServer(ctx context.Context, config string, repo *model.UserRepository, wikiRepo *model.WikiRepository, jwtSecret string) {
 	mux := http.NewServeMux()
 
 	routes.RegisterRoutes(mux, repo, wikiRepo, jwtSecret)
@@ -38,15 +37,9 @@ func StartServer(config string, repo *model.UserRepository, wikiRepo *model.Wiki
 
 	go runServer()
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
-
-	<-stop
+	<-ctx.Done()
 
 	log.Println("Shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatalf("shutdown failed: %v\n", err)
